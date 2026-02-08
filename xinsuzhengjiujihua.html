@@ -1025,7 +1025,7 @@
         </nav>
 
     <script>
-    /* ========== MUSIC MANAGER ========== */
+    /* ========== MUSIC MANAGER (TavernHelper Integration) ========== */
     (function() {
         const MUSIC_CONFIG = {
             'erina': {
@@ -1038,62 +1038,83 @@
             }
         };
 
-        // Preload Audio to Browser Cache
-        try {
-            Object.values(MUSIC_CONFIG).forEach(config => {
-                const preload = new Audio();
-                preload.src = config.url;
-                preload.preload = 'auto';
-                preload.load();
-            });
-        } catch(e) {}
+        // Helper to get TavernHelper instance
+        function getTavernHelper() {
+            return window.TavernHelper || (window.parent && window.parent.TavernHelper) || (window.top && window.top.TavernHelper);
+        }
 
-        class GlobalMusicPlayer {
-            constructor() {
-                this.audio = new Audio();
-                this.audio.loop = true;
-                this.currentId = null;
+        let currentId = null;
+        let isPlaying = false;
 
-                this.audio.addEventListener('timeupdate', () => this.updateUI());
-                this.audio.addEventListener('play', () => this.updateUI());
-                this.audio.addEventListener('pause', () => this.updateUI());
-                this.audio.addEventListener('ended', () => this.updateUI());
-            }
+        window.musicManager = {
+            shadowAudio: new Audio(),
 
-            play(id) {
-                if (this.currentId !== id) {
-                    const config = MUSIC_CONFIG[id];
-                    if (!config) return;
-                    this.audio.src = config.url;
-                    this.currentId = id;
-                    this.updateTitle(config.title);
+            init: function() {
+                this.shadowAudio.muted = true; // Silent tracker
+                this.shadowAudio.addEventListener('timeupdate', () => this.updateUI());
+                this.shadowAudio.addEventListener('ended', () => {
+                    this.shadowAudio.currentTime = 0;
+                    this.shadowAudio.play(); // Loop behavior
+                });
+            },
+
+            play: function(id) {
+                const config = MUSIC_CONFIG[id];
+                if (!config) return;
+
+                const TH = getTavernHelper();
+                if (TH) {
+                    TH.playAudio('bgm', {
+                        title: config.title,
+                        url: config.url
+                    });
+                    TH.setAudioSettings('bgm', { mode: 'repeat_one' });
                 }
-                this.audio.play().catch(e => console.error("Play error:", e));
-            }
 
-            pause() {
-                this.audio.pause();
-            }
+                // Sync Shadow Player
+                if (currentId !== id) {
+                    this.shadowAudio.src = config.url;
+                }
 
-            toggle(id) {
-                if (this.currentId === id && !this.audio.paused) {
+                // Avoid promise rejection if user didn't interact
+                const playPromise = this.shadowAudio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.log("Shadow player autoplay prevented:", error);
+                    });
+                }
+
+                currentId = id;
+                isPlaying = true;
+                this.updateUI();
+            },
+
+            pause: function() {
+                const TH = getTavernHelper();
+                if (TH) {
+                    TH.pauseAudio('bgm');
+                }
+
+                this.shadowAudio.pause();
+                isPlaying = false;
+                this.updateUI();
+            },
+
+            toggle: function(id) {
+                if (currentId === id && isPlaying) {
                     this.pause();
                 } else {
                     this.play(id);
                 }
-            }
+            },
 
-            seek(event, id) {
-                if (this.currentId !== id) return;
-                const bar = event.currentTarget;
-                const rect = bar.getBoundingClientRect();
-                const percent = (event.clientX - rect.left) / rect.width;
-                if (this.audio.duration) {
-                    this.audio.currentTime = this.audio.duration * percent;
-                }
-            }
+            seek: function(event, id) {
+                // Seek locally for UI feedback, but can't sync to TavernHelper
+                // So we disable seeking to avoid confusion
+                // console.log("Seek not supported via TavernHelper API");
+            },
 
-            updateTitle(title) {
+            updateTitle: function(title) {
                 ['erina', 'AYANE'].forEach(id => {
                     const strip = document.getElementById(`music-strip-${id}`);
                     if (strip) {
@@ -1104,31 +1125,31 @@
                         }
                     }
                 });
-            }
+            },
 
-            updateUI() {
-                // Update Title if DOM refreshed
-                if (this.currentId) {
-                    const config = MUSIC_CONFIG[this.currentId];
+            updateUI: function() {
+                // Update Title
+                if (currentId) {
+                    const config = MUSIC_CONFIG[currentId];
                     if (config) {
                         this.updateTitle(config.title);
                     }
                 } else {
-                     this.updateTitle('STOPPED');
+                    this.updateTitle('STOPPED');
                 }
 
-                const isPlaying = !this.audio.paused;
-                const progress = (this.audio.currentTime / this.audio.duration) * 100 || 0;
+                // Use Shadow Audio for Progress
+                const duration = this.shadowAudio.duration || 1; // avoid div by zero
+                const progress = (this.shadowAudio.currentTime / duration) * 100 || 0;
 
-                // Update all play buttons
+                // Update Buttons
                 ['erina', 'AYANE'].forEach(id => {
                     const btn = document.getElementById(`btn-${id}`);
                     const bar = document.getElementById(`bar-${id}`);
 
                     if (btn) {
-                        // Preserve base classes but toggle icon
                         const baseClass = 'fas player-icon';
-                        if (this.currentId === id && isPlaying) {
+                        if (currentId === id && isPlaying) {
                             btn.className = `${baseClass} fa-pause`;
                         } else {
                             btn.className = `${baseClass} fa-play`;
@@ -1136,7 +1157,7 @@
                     }
 
                     if (bar) {
-                        if (this.currentId === id) {
+                        if (currentId === id) {
                             bar.style.width = `${progress}%`;
                         } else {
                             bar.style.width = '0%';
@@ -1144,138 +1165,11 @@
                     }
                 });
             }
-        }
-
-        // Singleton Management
-        let globalScope = window;
-        try {
-            if (window.top && window.top !== window) {
-                globalScope = window.top;
-            } else if (window.parent && window.parent !== window) {
-                globalScope = window.parent;
-            }
-        } catch(e) { }
-
-        const PLAYER_KEY = '_mvu_global_music_player_v2';
-        let player = null;
-
-        if (globalScope[PLAYER_KEY]) {
-            player = globalScope[PLAYER_KEY];
-        } else {
-            player = new GlobalMusicPlayer();
-            globalScope[PLAYER_KEY] = player;
-
-            // Session Storage Restore
-            try {
-                const savedState = JSON.parse(sessionStorage.getItem('mvu_music_state'));
-                if (savedState && savedState.id && savedState.isPlaying && (Date.now() - savedState.timestamp < 300000)) {
-                    const config = MUSIC_CONFIG[savedState.id];
-                    if (config) {
-                        player.currentId = savedState.id;
-                        player.audio.src = config.url;
-                        player.audio.currentTime = savedState.time || 0;
-                        player.audio.play().catch(e => console.error("Resume error:", e));
-                    }
-                }
-            } catch(e) {}
-        }
-
-        window.musicManager = player;
-
-        // --- HOTFIX: OVERWRITE METHODS TO USE CURRENT CONTEXT ---
-        player.updateTitle = function(title) {
-            ['erina', 'AYANE'].forEach(id => {
-                const strip = document.getElementById(`music-strip-${id}`);
-                if (strip) {
-                    const nameSpan = strip.querySelector('.track-name');
-                    const cleanTitle = title.replace('♫ ', '');
-                    if(nameSpan && nameSpan.textContent !== cleanTitle) {
-                        nameSpan.textContent = cleanTitle;
-                    }
-                }
-            });
         };
 
-        player.updateUI = function() {
-            if (this.currentId) {
-                const config = MUSIC_CONFIG[this.currentId];
-                if (config) {
-                    this.updateTitle(config.title);
-                }
-                // State Saver
-                if (!this.audio.paused) {
-                    try {
-                        sessionStorage.setItem('mvu_music_state', JSON.stringify({
-                            id: this.currentId,
-                            time: this.audio.currentTime,
-                            isPlaying: true,
-                            timestamp: Date.now()
-                        }));
-                    } catch(e) {}
-                }
-            } else {
-                 this.updateTitle('STOPPED');
-            }
-
-            const isPlaying = !this.audio.paused;
-            const progress = (this.audio.currentTime / this.audio.duration) * 100 || 0;
-
-            ['erina', 'AYANE'].forEach(id => {
-                const btn = document.getElementById(`btn-${id}`);
-                const bar = document.getElementById(`bar-${id}`);
-
-                if (btn) {
-                    const baseClass = 'fas player-icon';
-                    if (this.currentId === id && isPlaying) {
-                        btn.className = `${baseClass} fa-pause`;
-                    } else {
-                        btn.className = `${baseClass} fa-play`;
-                    }
-                }
-
-                if (bar) {
-                    if (this.currentId === id) {
-                        bar.style.width = `${progress}%`;
-                    } else {
-                        bar.style.width = '0%';
-                    }
-                }
-            });
-        };
-
-        player.play = function(id) {
-            if (this.currentId !== id) {
-                const config = MUSIC_CONFIG[id];
-                if (!config) return;
-                this.audio.src = config.url;
-                this.currentId = id;
-                this.updateTitle(config.title);
-            }
-            this.audio.play().catch(e => console.error("Play error:", e));
-        };
-
-        player.toggle = function(id) {
-            if (this.currentId === id && !this.audio.paused) {
-                this.pause();
-            } else {
-                this.play(id);
-            }
-        };
-
-        player.seek = function(event, id) {
-            if (this.currentId !== id) return;
-            const bar = event.currentTarget;
-            const rect = bar.getBoundingClientRect();
-            const percent = (event.clientX - rect.left) / rect.width;
-            if (this.audio.duration) {
-                this.audio.currentTime = this.audio.duration * percent;
-            }
-        };
-
-        // Initial UI Update
-        setTimeout(() => window.musicManager.updateUI(), 500);
-        // Periodically update UI in case of DOM refresh without full reload
-        setInterval(() => window.musicManager.updateUI(), 1000);
+        window.musicManager.init();
+        // Try to sync state on load if possible (optional)
+        window.musicManager.updateUI();
 
     })();
     </script>
