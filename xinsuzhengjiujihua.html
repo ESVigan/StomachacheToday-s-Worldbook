@@ -883,7 +883,7 @@
                     <div class="switch-row"><div class="toggle" id="erina-toggle-private"><div class="toggle-dot"></div></div><span>私生活 OFF</span></div>
                     <div class="switch-row"><div class="toggle on" id="erina-toggle-business"><div class="toggle-dot"></div></div><span>营业中 ON</span></div>
                 </div>
-                <div class="sticker avatar-card"><div class="avatar-frame"><img src="https://esvigan.cn/绘里奈头像.webp" class="avatar-img" alt="如月绘里奈头像"></div><div class="avatar-tag"># ID PHOTO</div></div>
+                <div class="sticker avatar-card"><div class="avatar-frame"><img src="https://esvigan.cn/绘里奈头像new.webp" class="avatar-img" alt="如月绘里奈头像"></div><div class="avatar-tag"># ID PHOTO</div></div>
                 <div class="tags-group"><div class="tag-item"># S级女友</div><div class="tag-item"># 完美演技</div><div class="location-pill"><i class="fas fa-heart"></i> <span id="erina-location-text">专属天使</span></div></div>
                 <div class="pregnancy-badge" id="erina-pregnancy-badge" onclick="this.classList.toggle('flipped')">
                     <div class="pregnancy-inner">
@@ -923,7 +923,7 @@
                     <div class="switch-row"><div class="toggle" id="AYANE-toggle-private"><div class="toggle-dot"></div></div><span>私生活 OFF</span></div>
                     <div class="switch-row"><div class="toggle on" id="AYANE-toggle-business"><div class="toggle-dot"></div></div><span>营业中 ON</span></div>
                 </div>
-                <div class="sticker avatar-card"><div class="avatar-frame"><img src="https://esvigan.cn/林绛头像.webp" class="avatar-img" alt="月宫绾音头像"></div><div class="avatar-tag" id="AYANE-name-tag"># ID PHOTO
+                <div class="sticker avatar-card"><div class="avatar-frame"><img src="https://esvigan.cn/林绛头像new.webp" class="avatar-img" alt="月宫绾音头像"></div><div class="avatar-tag" id="AYANE-name-tag"># ID PHOTO
 
                 </div></div>
                 <div class="tags-group"><div class="tag-item tag-cv"><i class="fas fa-microphone-alt"></i> <span id="AYANE-cv-text">CV学习: 基础阶段</span></div><div class="tag-item tag-fans"><i class="fas fa-users"></i> <span id="AYANE-fans-text">粉丝数: 0人</span></div><div class="tag-item tag-secret" id="AYANE-secret-text">REAL NAME: ???</div></div>
@@ -1025,7 +1025,7 @@
         </nav>
 
     <script>
-    /* ========== MUSIC MANAGER (TavernHelper Integration) ========== */
+    /* ========== MUSIC MANAGER ========== */
     (function() {
         const MUSIC_CONFIG = {
             'erina': {
@@ -1038,83 +1038,62 @@
             }
         };
 
-        // Helper to get TavernHelper instance
-        function getTavernHelper() {
-            return window.TavernHelper || (window.parent && window.parent.TavernHelper) || (window.top && window.top.TavernHelper);
-        }
+        // Preload Audio to Browser Cache
+        try {
+            Object.values(MUSIC_CONFIG).forEach(config => {
+                const preload = new Audio();
+                preload.src = config.url;
+                preload.preload = 'auto';
+                preload.load();
+            });
+        } catch(e) {}
 
-        let currentId = null;
-        let isPlaying = false;
+        class GlobalMusicPlayer {
+            constructor() {
+                this.audio = new Audio();
+                this.audio.loop = true;
+                this.currentId = null;
 
-        window.musicManager = {
-            shadowAudio: new Audio(),
+                this.audio.addEventListener('timeupdate', () => this.updateUI());
+                this.audio.addEventListener('play', () => this.updateUI());
+                this.audio.addEventListener('pause', () => this.updateUI());
+                this.audio.addEventListener('ended', () => this.updateUI());
+            }
 
-            init: function() {
-                this.shadowAudio.muted = true; // Silent tracker
-                this.shadowAudio.addEventListener('timeupdate', () => this.updateUI());
-                this.shadowAudio.addEventListener('ended', () => {
-                    this.shadowAudio.currentTime = 0;
-                    this.shadowAudio.play(); // Loop behavior
-                });
-            },
-
-            play: function(id) {
-                const config = MUSIC_CONFIG[id];
-                if (!config) return;
-
-                const TH = getTavernHelper();
-                if (TH) {
-                    TH.playAudio('bgm', {
-                        title: config.title,
-                        url: config.url
-                    });
-                    TH.setAudioSettings('bgm', { mode: 'repeat_one' });
+            play(id) {
+                if (this.currentId !== id) {
+                    const config = MUSIC_CONFIG[id];
+                    if (!config) return;
+                    this.audio.src = config.url;
+                    this.currentId = id;
+                    this.updateTitle(config.title);
                 }
+                this.audio.play().catch(e => console.error("Play error:", e));
+            }
 
-                // Sync Shadow Player
-                if (currentId !== id) {
-                    this.shadowAudio.src = config.url;
-                }
+            pause() {
+                this.audio.pause();
+            }
 
-                // Avoid promise rejection if user didn't interact
-                const playPromise = this.shadowAudio.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(error => {
-                        console.log("Shadow player autoplay prevented:", error);
-                    });
-                }
-
-                currentId = id;
-                isPlaying = true;
-                this.updateUI();
-            },
-
-            pause: function() {
-                const TH = getTavernHelper();
-                if (TH) {
-                    TH.pauseAudio('bgm');
-                }
-
-                this.shadowAudio.pause();
-                isPlaying = false;
-                this.updateUI();
-            },
-
-            toggle: function(id) {
-                if (currentId === id && isPlaying) {
+            toggle(id) {
+                if (this.currentId === id && !this.audio.paused) {
                     this.pause();
                 } else {
                     this.play(id);
                 }
-            },
+            }
 
-            seek: function(event, id) {
-                // Seek locally for UI feedback, but can't sync to TavernHelper
-                // So we disable seeking to avoid confusion
-                // console.log("Seek not supported via TavernHelper API");
-            },
+            seek(event, id) {
+                if (this.currentId !== id) return;
+                const bar = event.currentTarget;
+                const rect = bar.getBoundingClientRect();
+                const percent = (event.clientX - rect.left) / rect.width;
+                if (this.audio.duration) {
+                    this.audio.currentTime = this.audio.duration * percent;
+                }
+            }
 
-            updateTitle: function(title) {
+            updateTitle(title) {
                 ['erina', 'AYANE'].forEach(id => {
                     const strip = document.getElementById(`music-strip-${id}`);
                     if (strip) {
@@ -1125,31 +1104,31 @@
                         }
                     }
                 });
-            },
+            }
 
-            updateUI: function() {
-                // Update Title
-                if (currentId) {
-                    const config = MUSIC_CONFIG[currentId];
+            updateUI() {
+                // Update Title if DOM refreshed
+                if (this.currentId) {
+                    const config = MUSIC_CONFIG[this.currentId];
                     if (config) {
                         this.updateTitle(config.title);
                     }
                 } else {
-                    this.updateTitle('STOPPED');
+                     this.updateTitle('STOPPED');
                 }
 
-                // Use Shadow Audio for Progress
-                const duration = this.shadowAudio.duration || 1; // avoid div by zero
-                const progress = (this.shadowAudio.currentTime / duration) * 100 || 0;
+                const isPlaying = !this.audio.paused;
+                const progress = (this.audio.currentTime / this.audio.duration) * 100 || 0;
 
-                // Update Buttons
+                // Update all play buttons
                 ['erina', 'AYANE'].forEach(id => {
                     const btn = document.getElementById(`btn-${id}`);
                     const bar = document.getElementById(`bar-${id}`);
 
                     if (btn) {
+                        // Preserve base classes but toggle icon
                         const baseClass = 'fas player-icon';
-                        if (currentId === id && isPlaying) {
+                        if (this.currentId === id && isPlaying) {
                             btn.className = `${baseClass} fa-pause`;
                         } else {
                             btn.className = `${baseClass} fa-play`;
@@ -1157,7 +1136,7 @@
                     }
 
                     if (bar) {
-                        if (currentId === id) {
+                        if (this.currentId === id) {
                             bar.style.width = `${progress}%`;
                         } else {
                             bar.style.width = '0%';
@@ -1165,11 +1144,138 @@
                     }
                 });
             }
+        }
+
+        // Singleton Management
+        let globalScope = window;
+        try {
+            if (window.top && window.top !== window) {
+                globalScope = window.top;
+            } else if (window.parent && window.parent !== window) {
+                globalScope = window.parent;
+            }
+        } catch(e) { }
+
+        const PLAYER_KEY = '_mvu_global_music_player_v2';
+        let player = null;
+
+        if (globalScope[PLAYER_KEY]) {
+            player = globalScope[PLAYER_KEY];
+        } else {
+            player = new GlobalMusicPlayer();
+            globalScope[PLAYER_KEY] = player;
+
+            // Session Storage Restore
+            try {
+                const savedState = JSON.parse(sessionStorage.getItem('mvu_music_state'));
+                if (savedState && savedState.id && savedState.isPlaying && (Date.now() - savedState.timestamp < 300000)) {
+                    const config = MUSIC_CONFIG[savedState.id];
+                    if (config) {
+                        player.currentId = savedState.id;
+                        player.audio.src = config.url;
+                        player.audio.currentTime = savedState.time || 0;
+                        player.audio.play().catch(e => console.error("Resume error:", e));
+                    }
+                }
+            } catch(e) {}
+        }
+
+        window.musicManager = player;
+
+        // --- HOTFIX: OVERWRITE METHODS TO USE CURRENT CONTEXT ---
+        player.updateTitle = function(title) {
+            ['erina', 'AYANE'].forEach(id => {
+                const strip = document.getElementById(`music-strip-${id}`);
+                if (strip) {
+                    const nameSpan = strip.querySelector('.track-name');
+                    const cleanTitle = title.replace('♫ ', '');
+                    if(nameSpan && nameSpan.textContent !== cleanTitle) {
+                        nameSpan.textContent = cleanTitle;
+                    }
+                }
+            });
         };
 
-        window.musicManager.init();
-        // Try to sync state on load if possible (optional)
-        window.musicManager.updateUI();
+        player.updateUI = function() {
+            if (this.currentId) {
+                const config = MUSIC_CONFIG[this.currentId];
+                if (config) {
+                    this.updateTitle(config.title);
+                }
+                // State Saver
+                if (!this.audio.paused) {
+                    try {
+                        sessionStorage.setItem('mvu_music_state', JSON.stringify({
+                            id: this.currentId,
+                            time: this.audio.currentTime,
+                            isPlaying: true,
+                            timestamp: Date.now()
+                        }));
+                    } catch(e) {}
+                }
+            } else {
+                 this.updateTitle('STOPPED');
+            }
+
+            const isPlaying = !this.audio.paused;
+            const progress = (this.audio.currentTime / this.audio.duration) * 100 || 0;
+
+            ['erina', 'AYANE'].forEach(id => {
+                const btn = document.getElementById(`btn-${id}`);
+                const bar = document.getElementById(`bar-${id}`);
+
+                if (btn) {
+                    const baseClass = 'fas player-icon';
+                    if (this.currentId === id && isPlaying) {
+                        btn.className = `${baseClass} fa-pause`;
+                    } else {
+                        btn.className = `${baseClass} fa-play`;
+                    }
+                }
+
+                if (bar) {
+                    if (this.currentId === id) {
+                        bar.style.width = `${progress}%`;
+                    } else {
+                        bar.style.width = '0%';
+                    }
+                }
+            });
+        };
+
+        player.play = function(id) {
+            if (this.currentId !== id) {
+                const config = MUSIC_CONFIG[id];
+                if (!config) return;
+                this.audio.src = config.url;
+                this.currentId = id;
+                this.updateTitle(config.title);
+            }
+            this.audio.play().catch(e => console.error("Play error:", e));
+        };
+
+        player.toggle = function(id) {
+            if (this.currentId === id && !this.audio.paused) {
+                this.pause();
+            } else {
+                this.play(id);
+            }
+        };
+
+        player.seek = function(event, id) {
+            if (this.currentId !== id) return;
+            const bar = event.currentTarget;
+            const rect = bar.getBoundingClientRect();
+            const percent = (event.clientX - rect.left) / rect.width;
+            if (this.audio.duration) {
+                this.audio.currentTime = this.audio.duration * percent;
+            }
+        };
+
+        // Initial UI Update
+        setTimeout(() => window.musicManager.updateUI(), 500);
+        // Periodically update UI in case of DOM refresh without full reload
+        setInterval(() => window.musicManager.updateUI(), 1000);
 
     })();
     </script>
@@ -1271,7 +1377,7 @@
                 name: '如月绘里奈',
                 fullName: '如月 绘里奈',
                 nameEn: 'KISARAGI ERINA',
-                avatar: 'https://esvigan.cn/绘里奈头像.webp',
+                avatar: 'https://esvigan.cn/绘里奈头像new.webp',
                 hero: 'https://esvigan.cn/绘里奈.webp',
                 heroOutside: 'https://esvigan.cn/绘里奈外.webp',
                 heroInside: 'https://esvigan.cn/绘里奈里.webp',
@@ -1300,7 +1406,7 @@
                 name: '月宫绾音',
                 fullName: '月宫 绾音',
                 nameEn: 'TSUKIMIYA AYANE',
-                avatar: 'https://esvigan.cn/林绛头像.webp',
+                avatar: 'https://esvigan.cn/林绛头像new.webp',
                 hero: 'https://esvigan.cn/绾音(旧）.webp',
                 heroOutside: 'https://esvigan.cn/绾音外.webp',
                 heroInside: 'https://esvigan.cn/绾音里.webp',
