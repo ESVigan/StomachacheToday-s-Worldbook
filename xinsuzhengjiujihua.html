@@ -1029,11 +1029,11 @@
     (function() {
         const MUSIC_CONFIG = {
             'erina': {
-                url: 'http://music.163.com/song/media/outer/url?id=26127770.mp3',
+                url: 'https://pub-4f69b26e6f244cc1a03edb0aa827b72b.r2.dev/%E7%AB%B9%E5%86%85%E3%81%BE%E3%82%8A%E3%82%84%20-%20%E3%83%97%E3%83%A9%E3%82%B9%E3%83%86%E3%82%A3%E3%83%83%E3%82%AF%E3%83%BB%E3%83%A9%E3%83%B4.mp3',
                 title: '♫ プラスティック・ラヴ'
             },
             'AYANE': {
-                url: 'http://music.163.com/song/media/outer/url?id=2036444270.mp3',
+                url: 'https://pub-4f69b26e6f244cc1a03edb0aa827b72b.r2.dev/%E3%83%A8%E3%83%AB%E3%82%B7%E3%82%AB%20-%20%E3%82%A2%E3%83%AB%E3%82%B8%E3%83%A3%E3%83%BC%E3%83%8E%E3%83%B3.mp3',
                 title: '♫ アルジャーノン'
             }
         };
@@ -2283,7 +2283,6 @@
                     document.body.style.width = '100vw';
                     document.body.style.height = '100vh';
                     document.body.style.overflow = 'hidden';
-                    document.body.style.justifyContent = 'center';
 
                     // Scale to fit
                     let scale = Math.min(winW / baseW, winH / baseH);
@@ -2300,7 +2299,6 @@
                     }
                 } else {
                     // Mobile Mode: Width Match + Shrink Wrap
-                    document.body.style.justifyContent = 'flex-start';
                     let scale = winW / baseW;
 
                     container.style.transform = `scale(${scale})`;
