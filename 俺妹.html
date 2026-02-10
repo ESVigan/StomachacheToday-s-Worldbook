@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oreimo Light Novel Status</title>
+    <!-- 仅保留 Google Fonts，移除其他外部字体引用 -->
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@800;900&family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* 直接嵌入标题字体 CSS */
+        @import url("https://fontsapi.zeoseven.com/423/main/result.css");
+        
+        :root {
+            --oreimo-green: #a4c520;
+            --oreimo-orange: #f39800;
+            --oreimo-pink: #ea8a9f;
+            --oreimo-purple: #9b72b0;
+            --oreimo-text: #2c2c2c;
+            --paper-white: #fcfcfc;
+            --base-width: 600px;
+            --base-height: 800px;
+        }
+
+        /* 调试面板样式 */
+        .debug-panel {
+            display: none; /* 隐藏调试面板 */
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 9999;
+            color: white;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .debug-btn {
+            background: #444;
+            color: white;
+            border: 1px solid #666;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .debug-btn:hover { background: #666; }
+        .debug-btn.active { background: var(--oreimo-green); border-color: var(--oreimo-green); }
+
+        /* 特殊立绘调整类 */
+        /* 默认立绘 (合照) */
+        .char-img.default {
+            /* translateX: 水平位移, translateY: 垂直位移 (负数向上, 正数向下) */
+            transform: scale(1.3) translateX(0px) translateY(-30px);
+            transform-origin: bottom center;
+        }
+        
+        /* 桐乃专用调整 */
+        .char-img.kirino {
+            transform: scale(1.3) translateX(-10px) translateY(140px); 
+            transform-origin: bottom center;
+        }
+        
+        /* 黑猫专用调整 */
+        .char-img.kuroneko {
+            transform: scale(0.5) translateX(10px) translateY(-20deg);
+            transform-origin: bottom center;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Zen Maru Gothic', sans-serif;
+            font-weight: normal;
+            overflow: hidden;
+        }
+
+        /* 统一粉笔效果滤镜 */
+        .chalk-effect {
+            /* filter: url(#rough-edges); */ /* 暂时禁用 */
+        }
+
+        /* === 缩放容器 (Zoom Wrapper) === */
+        /* 通过 transform: scale() 实现整体缩放，保证内部布局绝对不变 */
+        .zoom-wrapper {
+            width: var(--base-width);
+            height: var(--base-height);
+            transform-origin: center center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 封面容器：固定 600x800 */
+        .book-cover {
+            position: relative;
+            width: var(--base-width);
+            height: var(--base-height);
+            /* 强制 3:4 比例 */
+            aspect-ratio: 3 / 4;
+            
+            background: var(--paper-white);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* 移除之前的桌面端特定样式 */
+        /* 移除之前的移动端媒体查询限制，让这些样式全局生效 */
+
+        /* 统一的内部元素样式调整 */
+        .logo-main {
+            font-size: 55px; /* 统一使用移动端适配后的大小 */
+        }
+        .title-area {
+            top: 10%;
+        }
+        .vol-sticker {
+            top: 10px;
+            left: 10px;
+            padding: 4px 10px;
+            font-size: 10px;
+        }
+        .char-container {
+            height: 80%; /* 统一高度 */
+        }
+        .obi-wrapper {
+            bottom: 15px;
+        }
+
+        /* 移除原来的媒体查询块，直接应用其内容 */
+
+        /* === 层1：背景装饰 === */
+        .bg-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            /* 经典的圆点背景 */
+            background-image: radial-gradient(var(--oreimo-green) 20%, transparent 20%),
+                              radial-gradient(var(--oreimo-orange) 20%, transparent 20%);
+            background-color: #fff;
+            background-position: 0 0, 20px 20px;
+            background-size: 40px 40px;
+            opacity: 0.15;
+        }
+
+        /* === 层2：标题 Logo (顶部) === */
+        .title-area {
+            position: absolute;
+            top: 7%; /* 垂直位置：距离顶部 5% */
+            left: 50%; /* 水平位置：居中 */
+            transform: translateX(-50%) rotate(-10deg); /* 旋转角度 */
+            width: 100%;
+            text-align: center;
+            z-index: 1; /* 层级：在立绘背后 */
+            opacity: 1;
+            pointer-events: none;
+        }
+
+        .logo-main {
+            font-family: "851CHIKARA-YOWAKU", sans-serif;
+            font-weight: normal; 
+            font-size: 90px; /* 字体大小 */
+            line-height: 1.1;
+            color: var(--oreimo-green);
+            text-shadow: 
+                3px 3px 0px #fff, /* 白色描边 */
+                5px 5px 0px rgba(0,0,0,0.1); /* 阴影 */
+            display: inline-block;
+            background: transparent;
+            padding: 0;
+            border: none;
+            box-shadow: none;
+            white-space: nowrap; /* 防止换行 */
+            /* filter: url(#rough-edges); */ /* 暂时禁用粉笔滤镜 */
+        }
+        
+        .logo-main span.em { color: var(--oreimo-orange); } /* 强调色互换 */
+        .logo-main span.hi { color: var(--oreimo-pink); }
+
+        .logo-sub {
+            font-family: 'Zen Maru Gothic', sans-serif; /* 改回原先字体 */
+            font-size: 10px;
+            color: #888;
+            letter-spacing: 2px;
+            margin-top: -5px;
+            margin-right: 10px;
+            font-weight: 700;
+            opacity: 0.6;
+            /* filter: url(#rough-edges); */
+        }
+
+        /* === 层3：立绘 (核心) === */
+        .char-container {
+            position: absolute;
+            bottom: 1px;
+            left: 0;
+            width: 104%;
+            height: 97%;
+            z-index: 5;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            pointer-events: none;
+        }
+
+        .char-img {
+            /* 基础样式，具体变换由类名控制 */
+            max-width: 150%; 
+            max-height: 110%;
+            object-fit: contain;
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.8));
+            transition: opacity 0.4s ease, transform 0.4s ease; /* 增加 transform 过渡 */
+        }
+
+        /* === 层4：书腰 (底部信息区) === */
+        .obi-wrapper {
+            position: absolute;
+            bottom: 15px; /* 3. 上移 5px (原 10px -> 15px) */
+            left: 0;
+            width: 100%;
+            z-index: 20;
+            padding: 0 10px;
+        }
+
+        .obi-strip {
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid var(--oreimo-green);
+            border-radius: 4px 12px 12px 4px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            /* 增加高度弹性，适应更多内容 */
+            min-height: 280px; /* 增加高度以适应大字体 */
+            max-height: 55vh; /* 稍微放宽最大高度 */
+        }
+
+        .obi-content {
+            padding: 12px 12px 12px 25px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* 禁用滚动 */
+        }
+        /* 移除滚动条相关样式 */
+
+        /* 角色名大字 */
+        .char-name-big {
+            font-family: 'M PLUS Rounded 1c', sans-serif; /* 改回原先字体 */
+            font-weight: 900;
+            font-size: 42px; /* 1.5倍放大 */
+            color: var(--oreimo-text);
+            line-height: 1;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            /* filter: url(#rough-edges); */
+        }
+        .char-age-tag {
+            font-size: 18px; /* 1.5倍放大 */
+            background: var(--oreimo-text);
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            vertical-align: middle;
+        }
+
+        /* 好感度条 - 醒目 */
+        .love-gauge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            border-bottom: 1px dashed #ddd;
+            padding-bottom: 8px;
+        }
+        .love-label {
+            font-size: 15px; /* 1.5倍放大 */
+            color: var(--oreimo-pink);
+            font-weight: 900;
+        }
+        .love-track {
+            flex: 1;
+            height: 12px;
+            background: #eee;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+        }
+        .love-fill {
+            height: 100%;
+            background: repeating-linear-gradient(
+                -45deg,
+                var(--oreimo-pink),
+                var(--oreimo-pink) 8px,
+                #ff9eb5 8px,
+                #ff9eb5 16px
+            );
+            width: 0%;
+            transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .love-num {
+            font-size: 21px; /* 1.5倍放大 */
+            font-weight: 900;
+            color: var(--oreimo-pink);
+        }
+
+        /* 状态胶囊 */
+        .status-capsules {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .capsule {
+            display: inline-flex;
+            flex-direction: column; /* 改为垂直排列，适应多文字 */
+            font-size: 16px; /* 1.5倍放大 */
+            background: #f4f4f4;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #eee;
+            flex: 1 1 30%; /* 允许换行，每行约3个 */
+            min-width: 100px; /* 增加最小宽度 */
+        }
+        .cap-label {
+            background: var(--oreimo-blue);
+            color: #fff;
+            padding: 3px 6px;
+            font-weight: 700;
+            font-size: 13px; /* 1.5倍放大 */
+            text-transform: uppercase;
+            text-align: center;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2); /* 增加文字阴影提高可读性 */
+        }
+        .cap-val {
+            padding: 6px 8px;
+            color: #444;
+            font-weight: 700;
+            text-align: center;
+            white-space: normal; /* 允许文字换行 */
+            word-break: break-all;
+        }
+
+        /* 想法/剧情文本优化 */
+        .text-block {
+            font-size: 16px; /* 1.5倍放大 */
+            color: #444;
+            line-height: 1.5;
+            /* 限制显示行数，超出省略 */
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 8px;
+            background: #f9f9f9;
+            padding: 8px;
+            border-radius: 4px;
+            border-left: 3px solid #ddd;
+        }
+        .cap-mood .cap-label { background: var(--oreimo-purple); } /* 心情改为淡紫色 */
+        .cap-action .cap-label { background: var(--oreimo-green); }
+        .cap-outfit .cap-label { background: var(--oreimo-orange); }
+
+        /* 剧情摘要 (黑底白字，像宣传语) */
+        .plot-promo {
+            background: var(--oreimo-text);
+            color: #fff;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 16px; /* 1.5倍放大 */
+            line-height: 1.4;
+            position: relative;
+            margin-top: 5px;
+        }
+        .promo-tag {
+            position: absolute;
+            top: -8px;
+            left: 10px;
+            background: var(--oreimo-orange);
+            color: #fff;
+            font-size: 13px; /* 1.5倍放大 */
+            font-weight: 900;
+            padding: 2px 6px;
+            border-radius: 2px;
+            transform: rotate(-2deg);
+        }
+
+        /* 底部信息行 */
+        .meta-footer {
+            display: flex;
+            justify-content: space-between;
+            font-size: 15px; /* 1.5倍放大 */
+            color: #999;
+            margin-top: 5px;
+            padding: 0 5px;
+        }
+
+        /* 卷标贴纸 */
+        .vol-sticker {
+            position: absolute;
+            top: 15px;
+            left: 10px;
+            background: var(--oreimo-green);
+            color: #fff;
+            padding: 8px 15px; /* 调整内边距，适应内容 */
+            font-weight: 900;
+            transform: rotate(-4deg) scale(1.5);
+            transform-origin: top left;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            z-index: 25;
+            border: 2px solid #fff;
+            /* 弹性布局，适应多位数 */
+            display: flex;
+            align-items: baseline;
+            gap: 5px;
+            white-space: nowrap; /* 防止换行 */
+        }
+        
+        #vol-text {
+            font-size: 1.2em; /* 放大卷号 */
+        }
+        
+        #chapter-text {
+            font-size: 1em; /* 放大章节号 */
+        }
+
+        /* 错误提示 */
+        .error-overlay {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            display: none;
+            z-index: 999;
+        }
+
+    /* 移动端/嵌入环境适配 (类似 SillyTavern) */
+    /* 移除之前的媒体查询，改为 JS 动态缩放控制 */
+    </style>
+</head>
+<body>
+
+<div class="zoom-wrapper" id="zoom-wrapper">
+    <div class="book-cover">
+    <!-- 背景 -->
+    <div class="bg-layer"></div>
+
+    <!-- 立绘层 -->
+    <div class="char-container">
+        <!-- 默认显示合照，JS会替换 -->
+        <img src="https://raw.githubusercontent.com/ESVigan/dzt-s-picture/refs/heads/main/%E5%90%88%E7%85%A7.webp" class="char-img" id="char-img" alt="Character">
+    </div>
+
+    <!-- 顶部标题 -->
+    <div class="title-area">
+        <div class="logo-main">
+            俺の<span class="em">妹</span>がこんなに<br>
+            <span class="hi">可愛い</span>わけがない
+        </div>
+        <div class="logo-sub">LIGHT NOVEL STATUS</div>
+    </div>
+
+    <!-- 卷标 -->
+    <div class="vol-sticker">
+        <span id="vol-text">Vol.1</span> <span id="chapter-text">第1章</span>
+    </div>
+
+    <!-- 书腰 (信息区) -->
+    <div class="obi-wrapper">
+        <div class="obi-strip">
+            <div class="obi-content">
+                <!-- 名字 -->
+                <div class="char-name-big">
+                    <span id="char-name">高坂桐乃</span>
+                    <span class="char-age-tag" id="char-age">14岁</span>
+                </div>
+
+                <!-- 好感度 -->
+                <div class="love-gauge">
+                    <span class="love-label">AFFECTION / 好感度</span>
+                    <div class="love-track">
+                        <div class="love-fill" id="love-bar"></div>
+                    </div>
+                    <span class="love-num" id="love-val">0%</span>
+                </div>
+
+                <!-- 状态胶囊 -->
+                <div class="status-capsules">
+                    <div class="capsule cap-mood">
+                        <span class="cap-label">MOOD</span>
+                        <span class="cap-val" id="status-mood">开心</span>
+                    </div>
+                    <div class="capsule cap-action">
+                        <span class="cap-label">ACTION</span>
+                        <span class="cap-val" id="status-action">站立</span>
+                    </div>
+                    <div class="capsule cap-outfit">
+                        <span class="cap-label">OUTFIT</span>
+                        <span class="cap-val" id="status-outfit">校服</span>
+                    </div>
+                </div>
+
+                <!-- 想法/剧情 -->
+                <div style="margin-bottom: 8px;">
+                     <div style="font-size:15px; color:#666; font-weight:700; margin-bottom:2px;">THOUGHT</div>
+                     <div id="thought-text" class="text-block">...</div>
+                </div>
+
+                <div class="plot-promo">
+                    <span class="promo-tag">CURRENTLY</span>
+                    <span id="story-text" style="display:block; margin-top:5px;">剧情加载中...</span>
+                </div>
+
+                <!-- 底部元数据 -->
+                <div class="meta-footer">
+                    <span id="world-time"><i class="far fa-clock"></i> --:--</span>
+                    <span id="world-loc"><i class="fas fa-map-marker-alt"></i> ---</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="error-overlay" id="error-msg"></div>
+    
+    <!-- 调试面板 (已隐藏) -->
+    <!-- 
+    <div class="debug-panel">
+        <div style="font-weight:bold; margin-bottom:5px;">Char Debug</div>
+        <button class="debug-btn" onclick="forceChar('DEFAULT')">合照 (Default)</button>
+        <button class="debug-btn" onclick="forceChar('高坂桐乃')">桐乃 (Kirino)</button>
+        <button class="debug-btn" onclick="forceChar('五更琉璃')">黑猫 (Kuroneko)</button>
+    </div>
+    -->
+</div>
+
+<!-- 脚本 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
+<script>
+    // 资源配置
+    const CHAR_IMAGES = {
+        'DEFAULT': 'https://raw.githubusercontent.com/ESVigan/dzt-s-picture/refs/heads/main/%E5%90%88%E7%85%A7.webp',
+        '高坂桐乃': 'https://raw.githubusercontent.com/ESVigan/dzt-s-picture/refs/heads/main/%E6%A1%90%E4%B9%831.webp',
+        '桐乃': 'https://raw.githubusercontent.com/ESVigan/dzt-s-picture/refs/heads/main/%E6%A1%90%E4%B9%831.webp',
+        '五更琉璃': 'https://raw.githubusercontent.com/ESVigan/dzt-s-picture/refs/heads/main/%E9%BB%91%E7%8C%AB.webp',
+        '黑猫': 'https://raw.githubusercontent.com/ESVigan/dzt-s-picture/refs/heads/main/%E9%BB%91%E7%8C%AB.webp'
+    };
+
+    // MVU 辅助函数
+    async function waitGlobalInitialized(globalName, interval = 100, timeout = 10000) {
+        return new Promise((resolve, reject) => {
+            const start = Date.now();
+            const timer = setInterval(() => {
+                if (window[globalName]) {
+                    clearInterval(timer);
+                    resolve(window[globalName]);
+                } else if (Date.now() - start > timeout) {
+                    clearInterval(timer);
+                    console.warn(`Timeout waiting for ${globalName}`);
+                    resolve(null);
+                }
+            }, interval);
+        });
+    }
+
+    function getMvuVariables() {
+        // 优先使用 SillyTavern 原生提供的 getAllVariables
+        // 注意：不要将此函数命名为 getAllVariables，否则会覆盖原生函数导致死循环
+        if (typeof window.getAllVariables === 'function') {
+            return window.getAllVariables();
+        }
+        // 兼容 SillyTavern MVU 插件模式
+        if (window.Mvu && window.getCurrentMessageId) {
+            const msgId = window.getCurrentMessageId();
+            const vars = window.Mvu.getMvuData({ type: 'message', message_id: msgId });
+            return vars.stat_data || vars;
+        }
+        return {};
+    }
+
+    // 调试模式标志
+    let isDebugMode = false;
+    let debugCharName = null;
+
+    // 强制切换角色 (调试用)
+    window.forceChar = function(name) {
+        isDebugMode = true;
+        debugCharName = name;
+        render(); // 立即触发渲染
+    };
+
+    // 主渲染逻辑
+    function render() {
+        try {
+            const allVars = getMvuVariables();
+            // 兼容不同的变量结构：可能是直接的 stat_data，或者在根目录下
+            const data = allVars.stat_data || allVars || {};
+            
+            const world = _.get(data, '世界', {});
+            const chars = _.get(data, '角色', {});
+            const interact = _.get(world, '互动角色', {});
+
+            // 1. 角色判定 (调试模式优先)
+            let charName = _.get(interact, '名字', '无');
+            if (isDebugMode && debugCharName) {
+                charName = debugCharName;
+            }
+            const isInteracting = charName !== '无' || isDebugMode;
+
+            // 2. 更新图片与位置样式
+            let imgSrc = CHAR_IMAGES.DEFAULT;
+            let imgClass = 'default'; // 默认样式类
+
+            // 模糊匹配逻辑
+            if (CHAR_IMAGES[charName]) {
+                imgSrc = CHAR_IMAGES[charName];
+            } else {
+                // 尝试包含匹配
+                for (const key in CHAR_IMAGES) {
+                    if (key !== 'DEFAULT' && charName.includes(key)) {
+                        imgSrc = CHAR_IMAGES[key];
+                        break;
+                    }
+                }
+            }
+
+            // 确定样式类
+            if (charName.includes('桐乃')) {
+                imgClass = 'kirino';
+            } else if (charName.includes('黑猫') || charName.includes('琉璃')) {
+                imgClass = 'kuroneko';
+            }
+            
+            const $img = $('#char-img');
+            // 更新图片
+            if ($img.attr('src') !== imgSrc) {
+                $img.attr('src', imgSrc);
+            }
+            // 更新样式类 (先移除所有可能的角色类，再添加当前的)
+            $img.removeClass('default kirino kuroneko').addClass(imgClass);
+
+            // 3. 卷标信息
+            $('#vol-text').text(_.get(world, '卷名', 'Vol.1'));
+            $('#chapter-text').text(`第 ${_.get(world, '当前章节', 1)} 章`);
+
+            // 4. 角色信息
+            if (isInteracting) {
+                $('#char-name').text(charName);
+                
+                // 尝试获取角色静态数据
+                const charData = _.get(chars, charName, {});
+                const age = _.get(charData, '年龄', '??');
+                $('#char-age').text(`${age}岁`).show();
+
+                const love = _.get(charData, '好感度', 0);
+                $('#love-val').text(`${love}%`);
+                $('#love-bar').css('width', `${love}%`);
+
+                // 互动状态
+                $('#status-mood').text(_.get(interact, '心情', '平静'));
+                $('#status-action').text(_.get(interact, '动作', '无'));
+                $('#status-outfit').text(_.get(interact, '衣着', '日常'));
+                
+                // 内心想法
+                $('#thought-text').text(_.get(interact, '内心想法', '...'));
+            } else {
+                // 尝试显示默认主角或系统状态
+                $('#char-name').text('Story Mode');
+                $('#char-age').hide();
+                $('#love-val').text('0%');
+                $('#love-bar').css('width', '0%');
+                $('#status-mood').text('观察');
+                $('#status-action').text('浏览');
+                $('#status-outfit').text('--');
+                $('#thought-text').text('当前没有主要互动角色，正在推进主线剧情...');
+            }
+
+            // 5. 剧情与世界
+            $('#story-text').text(_.get(world, '正在发生的剧情', '剧情加载中...'));
+            $('#world-time').html(`<i class="far fa-clock"></i> ${_.get(world, '当前时间', '--:--')}`);
+            $('#world-loc').html(`<i class="fas fa-map-marker-alt"></i> ${_.get(world, '当前地点', 'Unknown')}`);
+
+        } catch (e) {
+            console.error(e);
+            $('#error-msg').text(e.message).show();
+        }
+    }
+
+    // 初始化
+    $(document).ready(async () => {
+        // 尝试等待环境就绪
+        await waitGlobalInitialized('Mvu');
+        render();
+        setInterval(render, 1000); // 1秒轮询一次
+        
+        // 自动缩放逻辑
+        function adjustScale() {
+            const wrapper = document.getElementById('zoom-wrapper');
+            const baseWidth = 600;
+            const availableWidth = window.innerWidth;
+            const availableHeight = window.innerHeight;
+            
+            // 计算缩放比例
+            let scale = availableWidth / baseWidth;
+            
+            // 限制最大缩放为 1 (不放大)
+            if (scale > 1) scale = 1;
+            
+            // 检查高度是否溢出，如果溢出则基于高度进一步缩小
+            const scaledHeight = 800 * scale;
+            if (scaledHeight > availableHeight) {
+                scale = availableHeight / 800;
+            }
+            
+            // 应用缩放 (保持居中)
+            // 减去一点 margin 避免贴边
+            const finalScale = scale * 0.95; 
+            wrapper.style.transform = `scale(${finalScale})`;
+        }
+        
+        // 监听窗口变化
+        window.addEventListener('resize', adjustScale);
+        // 初始调用
+        adjustScale();
+    });
+</script>
+
+</body>
+</html>
